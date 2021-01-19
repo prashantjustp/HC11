@@ -1,4 +1,5 @@
 ﻿using HC11.Models;
+using HotChocolate.AspNetCore.Authorization;
 using HotChocolate.Data;
 using HotChocolate.Types;
 using System;
@@ -26,6 +27,7 @@ namespace HC11.GraphQL
                 "k",
                 "l"
             };
+        [Authorize]
         [UseProjection]
         [HotChocolate.Types.UseFiltering]
         public IQueryable<TestHC11> GetTest()

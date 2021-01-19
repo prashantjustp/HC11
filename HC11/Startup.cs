@@ -2,6 +2,8 @@ using HC11.GraphQL;
 using HotChocolate.Execution.Options;
 using HotChocolate.Types;
 using HotChocolate.Types.Pagination;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.HttpsPolicy;
@@ -10,10 +12,12 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace HC11
@@ -38,11 +42,18 @@ namespace HC11
             });
             services.AddGraphQLServer()
                 .AddQueryType<Query>()
+                .AddAuthorization()
                 .BindRuntimeType<DateTime, DateTimeType>()
                 .BindRuntimeType<int, IntType>()
                 .BindRuntimeType<string, StringType>()
                 .BindRuntimeType<bool, BooleanType>()
                 .BindRuntimeType<long, LongType>()
+                .BindRuntimeType<Byte, ByteType>()
+                .BindRuntimeType<Decimal, DecimalType>()
+                .BindRuntimeType<Guid, UuidType>()
+                .BindRuntimeType<short, ShortType>()
+                .BindRuntimeType<float, FloatType>()
+                .AddExportDirectiveType()
                 .AddProjections()
                 .SetPagingOptions(
                 new PagingOptions()
@@ -52,8 +63,32 @@ namespace HC11
                     IncludeTotalCount = true
                 }
                 )
-                .EnableRelaySupport()
                 .ModifyRequestOptions(x => x.TracingPreference = TracingPreference.OnDemand);
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
+            {
+                options.RequireHttpsMetadata = false;
+                options.SaveToken = true;
+                options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters()
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidAudience = Configuration["Jwt:Audience"],
+                    ValidIssuer = Configuration["Jwt:Issuer"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Jwt:Key"]))
+
+                };
+            }
+    );
+            services.AddAuthorization(options =>
+            {
+                options.FallbackPolicy = new AuthorizationPolicyBuilder()
+                .RequireAuthenticatedUser()
+                .Build();
+                //options.AddPolicy("AddEditOrder", policy => policy.RequireClaim("AddEditOrderPermission", "true"));
+                options.AddPolicy("AddEditOrder", policy =>
+                policy.RequireAssertion(context => context.User.HasClaim(claim =>
+                  claim.Type == "AddEditOrderPermission" || claim.Type == "IsAdmin")));
+            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -69,7 +104,7 @@ namespace HC11
             app.UseHttpsRedirection();
 
             app.UseRouting();
-
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints =>
