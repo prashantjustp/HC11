@@ -40,6 +40,29 @@ namespace HC11
             {
                 c.SwaggerDoc("v1", new OpenApiInfo { Title = "HC11", Version = "v1" });
             });
+            
+            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
+            {
+                options.RequireHttpsMetadata = false;
+                options.SaveToken = true;
+                options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters()
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidAudience = Configuration["Jwt:Audience"],
+                    ValidIssuer = Configuration["Jwt:Issuer"],
+                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Jwt:Key"]))
+
+                };
+            }
+    );
+            services.AddAuthorization(options =>
+            {
+                //options.AddPolicy("AddEditOrder", policy => policy.RequireClaim("AddEditOrderPermission", "true"));
+                options.AddPolicy("AddEditOrder", policy =>
+                policy.RequireAssertion(context => context.User.HasClaim(claim =>
+                  claim.Type == "AddEditOrderPermission" || claim.Type == "IsAdmin")));
+            });
             services.AddGraphQLServer()
                 .AddQueryType<Query>()
                 .AddAuthorization()
@@ -64,31 +87,6 @@ namespace HC11
                 }
                 )
                 .ModifyRequestOptions(x => x.TracingPreference = TracingPreference.OnDemand);
-            services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer(options =>
-            {
-                options.RequireHttpsMetadata = false;
-                options.SaveToken = true;
-                options.TokenValidationParameters = new Microsoft.IdentityModel.Tokens.TokenValidationParameters()
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidAudience = Configuration["Jwt:Audience"],
-                    ValidIssuer = Configuration["Jwt:Issuer"],
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Configuration["Jwt:Key"]))
-
-                };
-            }
-    );
-            services.AddAuthorization(options =>
-            {
-                options.FallbackPolicy = new AuthorizationPolicyBuilder()
-                .RequireAuthenticatedUser()
-                .Build();
-                //options.AddPolicy("AddEditOrder", policy => policy.RequireClaim("AddEditOrderPermission", "true"));
-                options.AddPolicy("AddEditOrder", policy =>
-                policy.RequireAssertion(context => context.User.HasClaim(claim =>
-                  claim.Type == "AddEditOrderPermission" || claim.Type == "IsAdmin")));
-            });
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
